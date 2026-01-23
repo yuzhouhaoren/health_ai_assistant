@@ -51,7 +51,7 @@ class DeepSeekUtils {
       }
     } catch (e) {
       print("DeepSeek 分析失败：$e");
-      // 6. 降级返回模拟数据（避免乱码）
+      // 6. 降级返回模拟数据
       return {
         "food_type": "家常菜（米饭+青菜+炒肉）",
         "calorie": "约 580 大卡",

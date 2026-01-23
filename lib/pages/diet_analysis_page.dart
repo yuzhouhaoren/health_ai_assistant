@@ -6,7 +6,7 @@ import '../utils/ocr_utils.dart';
 import '../utils/deepseek_utils.dart';
 
 class DietAnalysisPage extends StatefulWidget {
-  /// 路由名称（与路由表联动）
+  /// 路由名称
   static const String routeName = '/diet_analysis';
 
   const DietAnalysisPage({super.key});

@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:intl/intl.dart'; // 确保依赖已安装
+import 'package:intl/intl.dart';
 
 class DietRecord {
   final int? id;
@@ -19,7 +19,7 @@ class DietRecord {
     required this.suitableFor,
     required this.advice,
     String? createTime,
-  }) : createTime = createTime ?? DateFormat("yyyy-MM-dd HH:mm:ss").format(DateTime.now()); // 修正："yyyyy"改为"yyyy"
+  }) : createTime = createTime ?? DateFormat("yyyy-MM-dd HH:mm:ss").format(DateTime.now());
 
   // 将对象转为Map（用于插入数据库）
   Map<String, dynamic> toJson() {
