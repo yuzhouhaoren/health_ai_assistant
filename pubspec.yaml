@@ -10,9 +10,12 @@ dependencies:
   flutter:
     sdk: flutter
   shared_preferences: ^2.2.2
-  http: ^1.2.0  # 先不加，等下再加
+  http: ^1.6.0  # 先不加，等下再加
 
   deepseek_api: ^0.1.2
+  image_picker: ^1.2.1
+  http_parser: ^4.1.2
+  mime: ^2.0.0
 
 dev_dependencies:
   flutter_test:
