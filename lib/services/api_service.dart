@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart'; //设置content-type
-import 'package:mime/mime.dart'; //判断文件类型
 
 class ApiService {
   // deepseek api
@@ -14,63 +14,68 @@ class ApiService {
   static const String _ocrApiKey = 'K84726173688957';
   static const String _ocrUrl = 'https://api.ocr.space/parse/image';
 
-  //将图片发送到OCR服务器，拿回识别到的文字
-  static Future<String> recognizeTextFromImage(String imagePath) async {
+  // 将图片发送到OCR服务器（Base64方式，适配Web和移动端）
+  static Future<String> recognizeTextFromImage(Uint8List imageBytes) async {
     try {
-      Future<String> _callOcr(String lang) async {
-        var request = http.MultipartRequest('POST', Uri.parse(_ocrUrl));
-        request.fields['apikey'] = _ocrApiKey;
-        request.fields['language'] = lang;
+      // 1. 转 Base64
+      String base64Image = "data:image/jpeg;base64,${base64Encode(imageBytes)}";
 
-        //构建http请求
-        final mimeType = lookupMimeType(imagePath) ?? 'image/jpeg';
-        final parts = mimeType.split('/');
-        request.files.add(await http.MultipartFile.fromPath(
-          'file',
-          imagePath,
-          contentType: MediaType(parts[0], parts[1]),
-        ));
+      // 2. 构造表单数据
+      // 注意：使用 Base64 上传时，OCR.Space 推荐使用 POST 表单 (application/x-www-form-urlencoded)
+      // 这样比 multipart/form-data 在 Web 上更稳定
+      final response = await http.post(
+        Uri.parse(_ocrUrl),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: {
+          "apikey": _ocrApiKey,
+          "base64image": base64Image,
+          "language": "chs", // 优先识别中文
+          "isOverlayRequired": "false",
+          "scale": "true", // 自动缩放以提高低分辨率图片的识别率
+          "detectOrientation": "true", // 尝试自动纠正方向
+          "OCREngine": "2", // 引擎2对数字和复杂排版支持通常更好，如果失败可尝试传 "1"
+        },
+      );
 
-        //处理http响应
-        final streamed = await request.send();
-        final resp = await http.Response.fromStream(streamed);
-        if (resp.statusCode != 200) return ' ';
-        final Map<String, dynamic> j = jsonDecode(resp.body);
-        if (j['IsErroredOnProcessing'] == true) return '';
-        final parsed = (j['ParsedResults'] as List<dynamic>?);
-        if (parsed == null || parsed.isEmpty) return '';
-        return (parsed[0]['ParsedText'] as String?) ?? '';
+      if (response.statusCode != 200) {
+        debugPrint(
+            "OCR API HTTP Error: ${response.statusCode} ${response.body}");
+        return 'Error: ${response.statusCode}';
       }
 
-      String textCh = await _callOcr('chs');
-      textCh = textCh.replaceAll(RegExp(r'\s+'), ' ').trim();
-      //检测说明中是否含英文
-      final hasChinese = RegExp(r'[\ue400-\u9fff]').hasMatch(textCh);
-      final hasEnglish = RegExp(r'[A-Za-z]').hasMatch(textCh);
-      if (!hasEnglish) {
-        String textEn = await _callOcr('eng');
-        textEn = textEn.replaceAll(RegExp(r'\s+'), ' ').trim();
-        String chosen = textCh;
-        if (textEn.isNotEmpty && textEn.length > textCh.length) {
-          chosen = textEn;
+      // 3. 解析结果
+      final Map<String, dynamic> j = jsonDecode(response.body);
+
+      if (j['IsErroredOnProcessing'] == true) {
+        String errorMsg = j['ErrorMessage']?.toString() ?? 'Unknown Error';
+        debugPrint("OCR Processing Error: $errorMsg");
+        if (errorMsg.contains('size limit')) {
+          return 'OCR Error: 图片过大，请继续压缩';
         }
-
-        if (chosen.isEmpty) return '识别结果为空';
-        return chosen;
+        return 'OCR Error: $errorMsg';
       }
-      //返回识别文字
-      if (textCh.isEmpty) return '识别结果为空';
-      return textCh;
+
+      final parsedResults = j['ParsedResults'] as List<dynamic>?;
+      if (parsedResults == null || parsedResults.isEmpty) {
+        return '';
+      }
+
+      String parsedText = parsedResults[0]['ParsedText'] ?? '';
+      // 简单清理换行，方便后续AI处理
+      return parsedText.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
     } catch (e) {
-      return 'OCR识别错误:$e';
+      debugPrint("OCR Request Exception: $e");
+      return 'OCR Exception: $e';
     }
   }
 
-  //发送给deepseek整理成JSON数据
+  // 发送给 DeepSeek 整理成 JSON 数据
   static Future<Map<String, dynamic>> analyzeMedicineInfo(
       String ocrText) async {
     try {
-      //构建提示词
+      // 优化提示词，强制要求纯 JSON
       final userPrompt = """
 请分析以下药品说明书文本，提取关键信息并以纯JSON格式返回。
 
@@ -78,7 +83,7 @@ class ApiService {
 $ocrText
 
 要求：
-1. 只返回JSON对象，不要包含Markdown标记（如 ```json ... ```）。
+1. 必须严格以纯JSON格式返回，不要包含 Markdown 标记（如 ```json ... ```）。
 2. 必须包含以下字段：
    - name: 药品名称（字符串）
    - dose: 单次服用剂量（字符串，如"2粒"、"10ml"）
@@ -88,7 +93,6 @@ $ocrText
 3. 如果某些字段无法从文本中找到，请根据常识合理推断或留空。
 """;
 
-      //构建请求体
       final body = jsonEncode({
         "model": "deepseek-chat",
         "messages": [
@@ -99,39 +103,42 @@ $ocrText
           {"role": "user", "content": userPrompt}
         ],
         "temperature": 0.1,
+        "max_tokens": 1000,
         "response_format": {"type": "json_object"}
       });
 
-      //发送POST请求
+      // 发送请求
       final response = await http.post(
         Uri.parse(_deepSeekUrl),
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Authorization': 'Bearer $_deepSeekKey',
         },
         body: utf8.encode(body),
       );
 
-      //解析结果
       if (response.statusCode == 200) {
-        //解析响应体
+        // 强制 UTF-8 解码，防止中文乱码
         final decodedBody = utf8.decode(response.bodyBytes);
         final jsonResponse = jsonDecode(decodedBody);
-        final content = jsonResponse['choices'][0]['message']['content'];
-        
-        //content字符串解析为JSON对象
-         try {
+        String content = jsonResponse['choices'][0]['message']['content'];
+
+        // 清理 Markdown 标记（如果 AI 还是加了的话）
+        content =
+            content.replaceAll("```json", "").replaceAll("```", "").trim();
+
+        try {
           return jsonDecode(content);
         } catch (e) {
-          print("DeepSeek返回的不是有效JSON: $content");
+          debugPrint("DeepSeek JSON Parse Error: $content");
           return {};
         }
       } else {
-        print("DeepSeek API请求失败: ${response.statusCode}");
+        debugPrint("DeepSeek API请求失败: ${response.statusCode} ${response.body}");
         return {};
       }
     } catch (e) {
-      print("AI分析过程出错: $e");
+      debugPrint("AI分析过程出错: $e");
       return {};
     }
   }
