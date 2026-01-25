@@ -14,15 +14,13 @@ class ApiService {
   static const String _ocrApiKey = 'K84726173688957';
   static const String _ocrUrl = 'https://api.ocr.space/parse/image';
 
-  // 将图片发送到OCR服务器（Base64方式，适配Web和移动端）
+  // 将图片发送到OCR服务器，base64
   static Future<String> recognizeTextFromImage(Uint8List imageBytes) async {
     try {
-      // 1. 转 Base64
+      //转base64
       String base64Image = "data:image/jpeg;base64,${base64Encode(imageBytes)}";
 
-      // 2. 构造表单数据
-      // 注意：使用 Base64 上传时，OCR.Space 推荐使用 POST 表单 (application/x-www-form-urlencoded)
-      // 这样比 multipart/form-data 在 Web 上更稳定
+      // 构造表单数据
       final response = await http.post(
         Uri.parse(_ocrUrl),
         headers: {
@@ -31,11 +29,11 @@ class ApiService {
         body: {
           "apikey": _ocrApiKey,
           "base64image": base64Image,
-          "language": "chs", // 优先识别中文
+          "language": "chs", 
           "isOverlayRequired": "false",
-          "scale": "true", // 自动缩放以提高低分辨率图片的识别率
-          "detectOrientation": "true", // 尝试自动纠正方向
-          "OCREngine": "2", // 引擎2对数字和复杂排版支持通常更好，如果失败可尝试传 "1"
+          "scale": "true", // 自动缩放
+          "detectOrientation": "true", // 自动纠正方向
+          "OCREngine": "2",
         },
       );
 
@@ -45,7 +43,7 @@ class ApiService {
         return 'Error: ${response.statusCode}';
       }
 
-      // 3. 解析结果
+      // 解析结果
       final Map<String, dynamic> j = jsonDecode(response.body);
 
       if (j['IsErroredOnProcessing'] == true) {
@@ -63,7 +61,7 @@ class ApiService {
       }
 
       String parsedText = parsedResults[0]['ParsedText'] ?? '';
-      // 简单清理换行，方便后续AI处理
+      //清理换行
       return parsedText.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
     } catch (e) {
       debugPrint("OCR Request Exception: $e");
@@ -71,7 +69,7 @@ class ApiService {
     }
   }
 
-  // 发送给 DeepSeek 整理成 JSON 数据
+  // 发送给 deepseek 整理成 JSON 数据
   static Future<Map<String, dynamic>> analyzeMedicineInfo(
       String ocrText) async {
     try {
@@ -123,7 +121,7 @@ $ocrText
         final jsonResponse = jsonDecode(decodedBody);
         String content = jsonResponse['choices'][0]['message']['content'];
 
-        // 清理 Markdown 标记（如果 AI 还是加了的话）
+        // 清理 Markdown 标记
         content =
             content.replaceAll("```json", "").replaceAll("```", "").trim();
 
