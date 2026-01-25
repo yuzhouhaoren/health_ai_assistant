@@ -15,21 +15,21 @@ class ScanMedicinePage extends StatefulWidget {
 
 class _ScanMedicinePageState extends State<ScanMedicinePage> {
   String? _imagePath;
-  XFile? _pickedFile; // 保存选择的文件对象
-  bool _isAnalyzing = false; // 判断是否在分析
-  String _statusMessage = ""; // 显示状态提示
+  XFile? _pickedFile;                    // 保存选择的文件对象
+  bool _isAnalyzing = false;             // 判断是否在分析
+  String _statusMessage = "";            // 显示状态提示
   Map<String, dynamic>? _analysisResult; // 存储分析结果
-  String _rawOcrText = ""; // 调试用
+  String _rawOcrText = "";
 
   // 选择图片
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
     try {
-      // 压缩图片：限制最大宽度并降低质量，以确保文件大小小于1MB（OCR API限制）
+      // 压缩图片,限制最大宽度并降低质量，以确保文件大小小于1MB
       final pickedFile = await picker.pickImage(
         source: source,
-        maxWidth: 1200, // 限制宽度
-        imageQuality: 85, // 压缩质量
+        maxWidth: 1200,       // 限制宽度
+        imageQuality: 85,     // 压缩质量
       );
 
       if (pickedFile != null) {
@@ -64,7 +64,7 @@ class _ScanMedicinePageState extends State<ScanMedicinePage> {
       // 读取文件字节
       final Uint8List imageBytes = await _pickedFile!.readAsBytes();
 
-      // 1. 调用OCR
+      //调用OCR
       String ocrText = await ApiService.recognizeTextFromImage(imageBytes);
       _rawOcrText = ocrText;
       debugPrint("DEBUG OCR OUTPUT: $ocrText");
@@ -81,7 +81,7 @@ class _ScanMedicinePageState extends State<ScanMedicinePage> {
         _statusMessage = "OCR识别成功，AI正在提取信息...";
       });
 
-      // 2. 调用DeepSeek分析
+      //调用DeepSeek分析
       Map<String, dynamic> aiResult =
           await ApiService.analyzeMedicineInfo(ocrText);
 
@@ -207,12 +207,12 @@ class _ScanMedicinePageState extends State<ScanMedicinePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1. 图片预览区
+              // 图片预览区
               _buildImagePreview(),
 
               const SizedBox(height: 20),
 
-              // 2. 状态提示
+              // 状态提示
               if (_statusMessage.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -243,7 +243,7 @@ class _ScanMedicinePageState extends State<ScanMedicinePage> {
                   ),
                 ),
 
-              // 3. 操作按钮区 (未在分析且无结果时显示)
+              // 操作按钮区 (未在分析且无结果时显示)
               if (!_isAnalyzing && _analysisResult == null)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -268,7 +268,7 @@ class _ScanMedicinePageState extends State<ScanMedicinePage> {
                   ],
                 ),
 
-              // 4. 开始分析按钮 (已选图片，未分析，无结果)
+              //开始分析按钮 (已选图片，未分析，无结果)
               if (_pickedFile != null &&
                   !_isAnalyzing &&
                   _analysisResult == null)
@@ -287,7 +287,7 @@ class _ScanMedicinePageState extends State<ScanMedicinePage> {
                   ),
                 ),
 
-              // 5. 分析结果展示
+              //分析结果展示
               if (_analysisResult != null)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
