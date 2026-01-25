@@ -312,13 +312,27 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 12),
             
             // 分析内容
-            Text(
-              HomeFunctions.getInteractionAnalysis(),
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.black87,
-                height: 1.5,
-              ),
+            FutureBuilder<String>(
+              future: HomeFunctions.getInteractionAnalysis(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Row(
+                    children: [
+                       SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                       SizedBox(width: 10),
+                       Text("正在进行AI关联分析...", style: TextStyle(color: Colors.grey)),
+                    ],
+                  );
+                }
+                return Text(
+                  snapshot.data ?? "暂无分析",
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    height: 1.5,
+                  ),
+                );
+              },
             ),
           ],
         ),

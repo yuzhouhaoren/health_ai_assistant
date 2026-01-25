@@ -140,4 +140,38 @@ $ocrText
       return {};
     }
   }
+
+  // 通用AI对话接口，用于主页建议等
+  static Future<String> askAI(String systemPrompt, String userPrompt) async {
+    try {
+      final body = jsonEncode({
+        "model": "deepseek-chat",
+        "messages": [
+          {"role": "system", "content": systemPrompt},
+          {"role": "user", "content": userPrompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 500,
+      });
+
+      final response = await http.post(
+        Uri.parse(_deepSeekUrl),
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Authorization': 'Bearer $_deepSeekKey',
+        },
+        body: utf8.encode(body),
+      );
+
+      if (response.statusCode == 200) {
+        final decodedBody = utf8.decode(response.bodyBytes);
+        final jsonResponse = jsonDecode(decodedBody);
+        return jsonResponse['choices'][0]['message']['content'] ?? "AI无响应";
+      } else {
+        return "网络请求失败: ${response.statusCode}";
+      }
+    } catch (e) {
+      return "AI服务暂时不可用: $e";
+    }
+  }
 }
