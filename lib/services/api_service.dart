@@ -10,7 +10,8 @@ class ApiService {
       'https://api.deepseek.com/v1/chat/completions';
 
   // ocr api
-  static const String _ocrApiKey = 'K84726173688957';
+  // 使用用户提供的 API Key
+  static const String _ocrApiKey = 'K82888596688957';
   static const String _ocrUrl = 'https://api.ocr.space/parse/image';
 
   // 将图片发送到OCR服务器，base64
@@ -27,7 +28,7 @@ class ApiService {
         debugPrint("Warning: Image size > 1MB. OCR might fail.");
       }
 
-      // 2. 检测图片格式并设置正确的MIME类型 (参考 ScanMenuPage 的实现，使用更稳健的方式)
+      // 2. 检测图片格式并设置正确的MIME类型
       String mimeType = 'image/jpeg'; // 默认
       String base64Prefix = 'data:image/jpeg;base64,';
 
@@ -63,12 +64,9 @@ class ApiService {
         body: {
           "apikey": _ocrApiKey,
           "base64image": base64WithPrefix,
-          // 移除 "filetype" 参数，让API自动检测或使用base64前缀判断，避免参数冲突导致 E301
           "language": "chs",
           "isOverlayRequired": "false",
-          "scale": "true", // 让服务器处理缩放
-          "detectOrientation": "true", // 自动纠正方向
-          "OCREngine": "2",
+          // 移除额外参数以减少 E301 错误的可能
         },
       );
 
