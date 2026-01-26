@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart'; // for kIsWeb
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import '../services/database.dart';
@@ -15,9 +16,9 @@ class ScanMedicinePage extends StatefulWidget {
 
 class _ScanMedicinePageState extends State<ScanMedicinePage> {
   String? _imagePath;
-  XFile? _pickedFile;                    // 保存选择的文件对象
-  bool _isAnalyzing = false;             // 判断是否在分析
-  String _statusMessage = "";            // 显示状态提示
+  XFile? _pickedFile; // 保存选择的文件对象
+  bool _isAnalyzing = false; // 判断是否在分析
+  String _statusMessage = ""; // 显示状态提示
   Map<String, dynamic>? _analysisResult; // 存储分析结果
   String _rawOcrText = "";
 
@@ -28,8 +29,8 @@ class _ScanMedicinePageState extends State<ScanMedicinePage> {
       // 压缩图片,限制最大宽度并降低质量，以确保文件大小小于1MB
       final pickedFile = await picker.pickImage(
         source: source,
-        maxWidth: 1200,       // 限制宽度
-        imageQuality: 85,     // 压缩质量
+        maxWidth: 1200, // 限制宽度
+        imageQuality: 85, // 压缩质量
       );
 
       if (pickedFile != null) {
@@ -61,8 +62,23 @@ class _ScanMedicinePageState extends State<ScanMedicinePage> {
     });
 
     try {
-      // 读取文件字节
-      final Uint8List imageBytes = await _pickedFile!.readAsBytes();
+      // 读取文件字节 (参考 ScanMenuPage 的 Web 兼容处理)
+      Uint8List imageBytes;
+      if (kIsWeb) {
+        try {
+          final response = await http.get(Uri.parse(_pickedFile!.path));
+          if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+            imageBytes = response.bodyBytes;
+          } else {
+            throw Exception('Web端图片读取失败: ${response.statusCode}');
+          }
+        } catch (e) {
+          debugPrint("Web读取备用方法: $e");
+          imageBytes = await _pickedFile!.readAsBytes();
+        }
+      } else {
+        imageBytes = await _pickedFile!.readAsBytes();
+      }
 
       //调用OCR
       String ocrText = await ApiService.recognizeTextFromImage(imageBytes);
