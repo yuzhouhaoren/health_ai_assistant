@@ -2,10 +2,71 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';  // 用于JSON转换
 import '../models/medicine.dart';
 import '../models/food.dart';
+
+// 用户信息模型类
+class UserProfile {
+  String name;
+  int age;
+  double height;      // 身高（厘米）
+  double weight;      // 体重（公斤）
+  String avatarPath;  // 头像本地路径
+  String? avatarUrl;  // 头像网络URL（可选）
+
+  UserProfile({
+    this.name = '用户',
+    this.age = 25,
+    this.height = 170.0,
+    this.weight = 65.0,
+    this.avatarPath = '',
+    this.avatarUrl,
+  });
+
+  // 将用户信息转为JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'age': age,
+      'height': height,
+      'weight': weight,
+      'avatarPath': avatarPath,
+      'avatarUrl': avatarUrl,
+    };
+  }
+
+  // 从JSON创建用户对象
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    return UserProfile(
+      name: json['name'] ?? '用户',
+      age: json['age'] ?? 25,
+      height: (json['height'] ?? 170.0).toDouble(),
+      weight: (json['weight'] ?? 65.0).toDouble(),
+      avatarPath: json['avatarPath'] ?? '',
+      avatarUrl: json['avatarUrl'],
+    );
+  }
+
+  // 计算BMI
+  double get bmi {
+    if (height <= 0) return 0;
+    double heightInMeters = height / 100;
+    return weight / (heightInMeters * heightInMeters);
+  }
+
+  // 获取BMI状态描述
+  String get bmiStatus {
+    double bmiValue = bmi;
+    if (bmiValue < 18.5) return '偏瘦';
+    if (bmiValue < 24) return '正常';
+    if (bmiValue < 28) return '偏胖';
+    return '肥胖';
+  }
+}
+
 class DatabaseService {
   // 存储键名常量
   static const String _medicinesKey = 'medicines';
   static const String _foodAnalysisKey = 'food_analysis';
+  static const String _userProfileKey = 'user_profile';  // 用户信息存储键名
   
   static late SharedPreferences _prefs;
 
@@ -131,7 +192,78 @@ class DatabaseService {
     return await saveFoodAnalysis(foods);
   }
 
-  // 4. ========== 工具函数 ==========
+  // 5. ========== 用户信息相关操作 ==========
+
+  // 保存用户信息
+  static Future<bool> saveUserProfile(UserProfile profile) async {
+    try {
+      String jsonString = jsonEncode(profile.toJson());
+      return await _prefs.setString(_userProfileKey, jsonString);
+    } catch (e) {
+      print('保存用户信息错误: $e');
+      return false;
+    }
+  }
+
+  // 获取用户信息（如果不存在则返回默认用户）
+  static UserProfile getUserProfile() {
+    try {
+      final jsonString = _prefs.getString(_userProfileKey);
+      if (jsonString == null || jsonString.isEmpty) {
+        // 返回默认用户信息
+        return UserProfile();
+      }
+
+      Map<String, dynamic> json = jsonDecode(jsonString);
+      return UserProfile.fromJson(json);
+    } catch (e) {
+      print('读取用户信息错误: $e');
+      return UserProfile();  // 出错时返回默认用户
+    }
+  }
+
+  // 更新用户姓名
+  static Future<bool> updateUserName(String name) async {
+    UserProfile profile = getUserProfile();
+    profile.name = name;
+    return await saveUserProfile(profile);
+  }
+
+  // 更新用户年龄
+  static Future<bool> updateUserAge(int age) async {
+    UserProfile profile = getUserProfile();
+    profile.age = age;
+    return await saveUserProfile(profile);
+  }
+
+  // 更新用户身高
+  static Future<bool> updateUserHeight(double height) async {
+    UserProfile profile = getUserProfile();
+    profile.height = height;
+    return await saveUserProfile(profile);
+  }
+
+  // 更新用户体重
+  static Future<bool> updateUserWeight(double weight) async {
+    UserProfile profile = getUserProfile();
+    profile.weight = weight;
+    return await saveUserProfile(profile);
+  }
+
+  // 更新用户头像路径
+  static Future<bool> updateUserAvatar(String avatarPath) async {
+    UserProfile profile = getUserProfile();
+    profile.avatarPath = avatarPath;
+    return await saveUserProfile(profile);
+  }
+
+  // 清除用户数据（调试用）
+  static Future<void> clearUserData() async {
+    await _prefs.remove(_userProfileKey);
+    print('用户数据已清除');
+  }
+
+  // 6. ========== 工具函数 ==========
   
   // 清除所有数据（调试用）
   static Future<void> clearAllData() async {

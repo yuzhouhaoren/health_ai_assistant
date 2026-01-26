@@ -60,9 +60,10 @@ class _ChatPageState extends State<ChatPage> {
     // 1. 获取用户健康数据
     final medicines = DatabaseService.getMedicines();
     final foods = DatabaseService.getFoodAnalysis();
+    final profile = DatabaseService.getUserProfile(); // 获取用户信息
 
     // 2. 构建智能提示词（让AI了解用户情况）
-    String healthContext = _buildHealthContext(medicines, foods);
+    String healthContext = _buildHealthContext(medicines, foods, profile);
     
     // 3. 构造完整的对话消息
     final messages = [
@@ -110,9 +111,18 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   // ==================== 构建健康数据上下文 ====================
-  String _buildHealthContext(List medicines, List foods) {
+  String _buildHealthContext(List medicines, List foods, UserProfile profile) {
     StringBuffer context = StringBuffer();
-    
+
+    // 用户基本信息
+    context.writeln('【用户信息】');
+    context.writeln('- 姓名：${profile.name}');
+    context.writeln('- 年龄：${profile.age}岁');
+    context.writeln('- 身高：${profile.height.toStringAsFixed(0)}cm');
+    context.writeln('- 体重：${profile.weight.toStringAsFixed(1)}kg');
+    context.writeln('- BMI：${profile.bmi.toStringAsFixed(1)}（${profile.bmiStatus}）');
+    context.writeln();
+
     // 药品信息
     if (medicines.isNotEmpty) {
       context.writeln('【今日用药】');
@@ -126,7 +136,7 @@ class _ChatPageState extends State<ChatPage> {
     } else {
       context.writeln('【今日用药】无记录\n');
     }
-    
+
     // 饮食信息
     if (foods.isNotEmpty) {
       context.writeln('【今日饮食】');
@@ -139,7 +149,7 @@ class _ChatPageState extends State<ChatPage> {
     } else {
       context.writeln('【今日饮食】无记录');
     }
-    
+
     return context.toString();
   }
 

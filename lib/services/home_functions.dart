@@ -11,6 +11,7 @@ import '../models/medicine.dart';
 import '../models/food.dart';
 import 'database.dart';
 import 'api_service.dart';
+import 'news_service.dart';
 
 class HomeFunctions {
   // ==================== 模块1相关函数 ====================
@@ -27,7 +28,35 @@ class HomeFunctions {
   /// [!输入参数] 无
   /// [!返回格式] 字符串，如："约 1200 大卡" 或 "未记录饮食"
   static String getTodayCalories() {
-    return "待开发中...";
+    try {
+      List<FoodAnalysis> foods = DatabaseService.getFoodAnalysis();
+
+      // 筛选今日饮食记录
+      final now = DateTime.now();
+      final todayFoods = foods.where((food) =>
+          food.analyzedAt.year == now.year &&
+          food.analyzedAt.month == now.month &&
+          food.analyzedAt.day == now.day
+      ).toList();
+
+      if (todayFoods.isEmpty) {
+        return "未记录饮食";
+      }
+
+      // 累加卡路里
+      int totalCalories = 0;
+      for (var food in todayFoods) {
+        totalCalories += _extractCalories(food.calories);
+      }
+
+      // 获取用户信息计算推荐值
+      UserProfile profile = DatabaseService.getUserProfile();
+      int recommendedCalories = _calculateRecommendedCalories(profile);
+
+      return "约 $totalCalories 大卡 (推荐 $recommendedCalories 大卡)";
+    } catch (e) {
+      return "获取失败";
+    }
   }
 
   /// [函数1.2] 获取今日需服药物
@@ -73,10 +102,74 @@ class HomeFunctions {
   ///   4. 解析API返回的建议文本
   /// [!输入参数] 无
   /// [!返回格式] 字符串，如："现在是15:30，您可以开始锻炼啦！"
-  static String getHealthTimeline() {
-    // [!待实现区域] - 开发者需要在此添加具体逻辑
-    // [!提示] 需要调用 ApiService 与 DeepSeek API 交互
-    return "现在是 --:--，健康建议功能开发中";
+  static Future<String> getHealthTimeline() async {
+    try {
+      // 获取用户数据
+      UserProfile profile = DatabaseService.getUserProfile();
+      List<Medicine> medicines = DatabaseService.getMedicines();
+      List<FoodAnalysis> foods = DatabaseService.getFoodAnalysis();
+
+      // 获取当前时间
+      final now = DateTime.now();
+      String currentTime = DateFormat('HH:mm').format(now);
+      String greeting = _getGreeting(now.hour);
+
+      // 获取今日饮食
+      final todayFoods = foods.where((food) =>
+          food.analyzedAt.year == now.year &&
+          food.analyzedAt.month == now.month &&
+          food.analyzedAt.day == now.day
+      ).toList();
+
+      // 计算今日已摄入卡路里
+      int consumedCalories = 0;
+      for (var food in todayFoods) {
+        consumedCalories += _extractCalories(food.calories);
+      }
+
+      // 构建用户信息描述
+      String userInfo = """
+用户信息：
+- 姓名：${profile.name}
+- 年龄：${profile.age}岁
+- 身高：${profile.height.toStringAsFixed(0)}cm
+- 体重：${profile.weight.toStringAsFixed(1)}kg
+- BMI：${profile.bmi.toStringAsFixed(1)}（${profile.bmiStatus}）
+- 今日已摄入卡路里：$consumedCalories 大卡
+""";
+
+      // 构建药物信息
+      String medInfo = medicines.isNotEmpty
+          ? medicines.map((m) => "- ${m.name}，每次${m.dose}，${m.frequency}").join("\n")
+          : "无服药记录";
+
+      // 构建Prompt
+      String prompt = """
+$userInfo
+
+当前时间：${currentTime}（$greeting）
+
+今日服药计划：
+$medInfo
+
+请根据以上信息，生成一条简短实用的个性化健康建议（100字以内），包括：
+1. 当前时间段的养生建议（如饮食、运动、作息）
+2. 服药提醒（如有）
+3. 针对用户BMI的提醒（如有）
+
+请用温暖的语气表达，像一个贴心的健康管家。
+""";
+
+      String aiResponse = await ApiService.askAI(
+          "你是一个专业的健康管家，擅长根据用户的身体状况和时间提供个性化建议。",
+          prompt
+      );
+
+      // 格式化输出
+      return "现在是 $currentTime $greeting\n\n$aiResponse";
+    } catch (e) {
+      return "现在是 ${_getCurrentTime()}，获取健康建议失败";
+    }
   }
 
   // ==================== 模块3相关函数 ====================
@@ -131,7 +224,7 @@ class HomeFunctions {
   /// [函数4] 获取健康分数
   /// ============================================
   /// [!功能描述] 计算今日健康分数（初始分90）
-  /// [!计分标准] 让AI来吧
+  /// [!计分标准] 根据BMI、饮食记录、服药依从性计算
   /// [!实现步骤]
   ///   1. 获取用户各项健康数据
   ///   2. 根据计分标准计算每项得分
@@ -139,8 +232,124 @@ class HomeFunctions {
   /// [!输入参数] 无
   /// [!返回格式] 字符串，如："92分 - 优秀！继续保持"
   static String getHealthScore() {
-    // [!待实现区域] - 开发者需要在此添加具体逻辑
-    return "90分 - 分数计算功能开发中";
+    try {
+      // 获取用户数据
+      UserProfile profile = DatabaseService.getUserProfile();
+      List<Medicine> medicines = DatabaseService.getMedicines();
+      List<FoodAnalysis> foods = DatabaseService.getFoodAnalysis();
+
+      // 计算BMI得分（满分30分）
+      double bmi = profile.bmi;
+      int bmiScore;
+      if (bmi >= 18.5 && bmi <= 23.9) {
+        bmiScore = 30;  // 正常BMI
+      } else if (bmi >= 24 && bmi <= 27.9) {
+        bmiScore = 20;  // 偏胖
+      } else if (bmi < 18.5) {
+        bmiScore = 15;  // 偏瘦
+      } else {
+        bmiScore = 10;  // 肥胖
+      }
+
+      // 计算饮食得分（满分30分）
+      final now = DateTime.now();
+      final todayFoods = foods.where((food) =>
+          food.analyzedAt.year == now.year &&
+          food.analyzedAt.month == now.month &&
+          food.analyzedAt.day == now.day
+      ).toList();
+
+      int foodScore = 0;
+      if (todayFoods.isEmpty) {
+        foodScore = 15;  // 未记录饮食，基础分
+      } else {
+        int consumedCalories = 0;
+        for (var food in todayFoods) {
+          consumedCalories += _extractCalories(food.calories);
+        }
+        int recommended = _calculateRecommendedCalories(profile);
+        double calorieRatio = consumedCalories / recommended;
+
+        if (calorieRatio >= 0.8 && calorieRatio <= 1.2) {
+          foodScore = 30;  // 饮食正常
+        } else if (calorieRatio >= 0.6 && calorieRatio < 0.8) {
+          foodScore = 25;  // 略少
+        } else if (calorieRatio > 1.2 && calorieRatio <= 1.5) {
+          foodScore = 25;  // 略多
+        } else if (calorieRatio < 0.6) {
+          foodScore = 15;  // 太少
+        } else {
+          foodScore = 10;  // 太多
+        }
+      }
+
+      // 计算服药得分（满分30分）
+      int medScore = 0;
+      if (medicines.isEmpty) {
+        medScore = 30;  // 无需服药，满分
+      } else {
+        // 检查今日是否按时服药
+        int takenCount = 0;
+        int totalCount = 0;
+
+        for (var med in medicines) {
+          totalCount += med.schedule.length;
+          for (var timeStr in med.schedule) {
+            try {
+              List<String> parts = timeStr.trim().split(":");
+              if (parts.length >= 2) {
+                int h = int.parse(parts[0]);
+                int m = int.parse(parts[1]);
+                DateTime scheduleTime = DateTime(now.year, now.month, now.day, h, m);
+                // 如果当前时间超过服药时间30分钟，且有服药记录，则视为已服药
+                if (now.isAfter(scheduleTime.add(const Duration(minutes: 30))) ||
+                    med.lastTaken != null && med.lastTaken!.isAfter(scheduleTime)) {
+                  takenCount++;
+                }
+              }
+            } catch (e) {
+              continue;
+            }
+          }
+        }
+
+        if (totalCount == 0) {
+          medScore = 30;
+        } else {
+          double adherenceRate = takenCount / totalCount;
+          if (adherenceRate >= 0.8) {
+            medScore = 30;
+          } else if (adherenceRate >= 0.6) {
+            medScore = 25;
+          } else {
+            medScore = 15;
+          }
+        }
+      }
+
+      // 计算作息得分（满分10分）
+      int scheduleScore = _calculateScheduleScore(now.hour);
+
+      // 总分
+      int totalScore = bmiScore + foodScore + medScore + scheduleScore;
+
+      // 生成评价
+      String evaluation;
+      if (totalScore >= 90) {
+        evaluation = "优秀！继续保持";
+      } else if (totalScore >= 75) {
+        evaluation = "良好，还有提升空间";
+      } else if (totalScore >= 60) {
+        evaluation = "一般，请注意健康";
+      } else {
+        evaluation = "较差，需要改善";
+      }
+
+      return "$totalScore分 - $evaluation\n"
+          "（BMI ${bmiScore}分 + 饮食 ${foodScore}分 + 服药 ${medScore}分 + 作息 ${scheduleScore}分）";
+    } catch (e) {
+      return "计算失败";
+    }
   }
 
   // ==================== 模块5相关函数 ====================
@@ -208,14 +417,11 @@ class HomeFunctions {
   }
 
   // ==================== 辅助函数区域 ====================
-  // [!说明] 以下辅助函数供上面主要函数调用，也需要开发者实现
-
   /// [辅助函数] 获取当前时间（HH:mm格式）
   /// [!功能] 返回格式化的当前时间字符串
   /// [!返回] 如："15:30"
   static String _getCurrentTime() {
-    // [!待实现] - 开发者可以根据需要实现
-    return "--:--";
+    return DateFormat('HH:mm').format(DateTime.now());
   }
 
   /// [辅助函数] 从字符串提取卡路里数值
@@ -223,7 +429,106 @@ class HomeFunctions {
   /// [!参数] caloriesString: 卡路里字符串
   /// [!返回] 整数值
   static int _extractCalories(String caloriesString) {
-    // [!待实现] - 开发者可以根据需要实现
-    return 0;
+    try {
+      // 匹配数字
+      RegExp regExp = RegExp(r'(\d+)');
+      Match? match = regExp.firstMatch(caloriesString);
+      if (match != null) {
+        return int.parse(match.group(1)!);
+      }
+      return 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// [辅助函数] 根据时间段获取问候语
+  /// [!参数] hour: 24小时制的小时数
+  /// [!返回] 问候语
+  static String _getGreeting(int hour) {
+    if (hour >= 5 && hour < 12) {
+      return "早上好";
+    } else if (hour >= 12 && hour < 14) {
+      return "中午好";
+    } else if (hour >= 14 && hour < 18) {
+      return "下午好";
+    } else if (hour >= 18 && hour < 22) {
+      return "晚上好";
+    } else {
+      return "夜深了";
+    }
+  }
+
+  /// [辅助函数] 计算推荐每日卡路里摄入量
+  /// [!基于] 静息代谢率 + 活动系数
+  /// [!参数] profile: 用户资料
+  /// [!返回] 推荐每日卡路里（大卡）
+  static int _calculateRecommendedCalories(UserProfile profile) {
+    // 基础代谢率计算（使用Mifflin-St Jeor公式）
+    double bmr;
+    if (profile.age > 0) {
+      // 男性: 10×体重(kg) + 6.25×身高(cm) - 5×年龄 + 5
+      // 女性: 10×体重(kg) + 6.25×身高(cm) - 5×年龄 - 161
+      bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age + 5;
+    } else {
+      bmr = 10 * profile.weight + 6.25 * profile.height + 5;
+    }
+
+    // 根据BMI调整活动系数
+    double activityFactor;
+    double bmi = profile.bmi;
+
+    if (bmi < 18.5) {
+      activityFactor = 1.2;  // 偏瘦，需要增重，较低活动
+    } else if (bmi >= 18.5 && bmi < 24) {
+      activityFactor = 1.5;  // 正常体重，标准活动
+    } else if (bmi >= 24 && bmi < 28) {
+      activityFactor = 1.3;  // 偏胖，适当控制
+    } else {
+      activityFactor = 1.15;  // 肥胖，减重为主
+    }
+
+    return (bmr * activityFactor).round();
+  }
+
+  /// [辅助函数] 根据当前时间计算作息得分
+  /// [!参数] hour: 当前小时
+  /// [!返回] 得分（0-10分）
+  static int _calculateScheduleScore(int hour) {
+    // 理想作息时间表
+    if (hour >= 6 && hour <= 9) {
+      return 10;  // 早起时段，加分
+    } else if (hour >= 9 && hour <= 12) {
+      return 8;   // 上午
+    } else if (hour >= 12 && hour <= 14) {
+      return 8;   // 午休时段
+    } else if (hour >= 14 && hour <= 18) {
+      return 8;   // 下午
+    } else if (hour >= 18 && hour <= 21) {
+      return 7;   // 晚上
+    } else if (hour >= 21 && hour <= 23) {
+      return 6;   // 晚睡边缘
+    } else {
+      return 4;   // 深夜熬夜
+    }
+  }
+
+  // ==================== 健康新闻模块 ====================
+
+  /// [函数6] 获取健康新闻
+  /// ============================================
+  /// [!功能描述] 获取每日健康新闻（2条）
+  /// [!实现步骤]
+  ///   1. 调用NewsService获取新闻
+  ///   2. 格式化返回结果
+  /// [!输入参数] 无
+  /// [!返回格式] Future<List<HealthNews>>
+  static Future<List<HealthNews>> getHealthNews() async {
+    try {
+      return await NewsService.getHealthNews();
+    } catch (e) {
+      // 如果获取失败，返回空列表
+      return [];
+    }
   }
 }

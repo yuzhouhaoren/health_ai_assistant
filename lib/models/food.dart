@@ -5,9 +5,10 @@ class FoodAnalysis {
   String imagePath;     // 图片本地路径
   List<String> ingredients; // 识别的食材列表
   String calories;      // 热量估算，如"约300大卡"
-  List<String> nutrition;   // 主要营养成分
-  List<String> suitableFor; // 适合人群
-  String advice;        // 健康建议
+  String protein;       // 蛋白质含量，如"15g"
+  String carbs;         // 碳水化合物含量，如"45g"
+  String fat;           // 脂肪含量，如"12g"
+  String suggestion;    // 健康建议
   DateTime analyzedAt;  // 分析时间
 
   FoodAnalysis({
@@ -16,23 +17,26 @@ class FoodAnalysis {
     required this.imagePath,
     required this.ingredients,
     required this.calories,
-    required this.nutrition,
-    required this.suitableFor,
-    required this.advice,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+    required this.suggestion,
     required this.analyzedAt,
   });
 
   // 从JSON创建
   factory FoodAnalysis.fromJson(Map<String, dynamic> json) {
+    // 处理 AI 返回的简化格式（可能没有 id、imagePath 等字段）
     return FoodAnalysis(
       id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      foodName: json['foodName'] ?? '未知食物',
+      foodName: json['foodName'] ?? json['name'] ?? '未知食物',
       imagePath: json['imagePath'] ?? '',
       ingredients: (json['ingredients'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
       calories: json['calories'] ?? '未计算',
-      nutrition: (json['nutrition'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
-      suitableFor: (json['suitableFor'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
-      advice: json['advice'] ?? '无特别建议',
+      protein: json['protein'] ?? '未知',
+      carbs: json['carbs'] ?? '未知',
+      fat: json['fat'] ?? '未知',
+      suggestion: json['suggestion'] ?? json['advice'] ?? '无特别建议',
       analyzedAt: DateTime.parse(json['analyzedAt'] ?? DateTime.now().toIso8601String()),
     );
   }
@@ -45,15 +49,16 @@ class FoodAnalysis {
       'imagePath': imagePath,
       'ingredients': ingredients,
       'calories': calories,
-      'nutrition': nutrition,
-      'suitableFor': suitableFor,
-      'advice': advice,
+      'protein': protein,
+      'carbs': carbs,
+      'fat': fat,
+      'suggestion': suggestion,
       'analyzedAt': analyzedAt.toIso8601String(),
     };
   }
 
   // 获取简短描述
   String getShortDescription() {
-    return '$calories • ${nutrition.take(2).join('、')}';
+    return '$calories • 蛋白$protein • 碳水$carbs • 脂肪$fat';
   }
 }
