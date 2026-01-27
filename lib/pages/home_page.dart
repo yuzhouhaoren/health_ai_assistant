@@ -45,7 +45,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> _loadUserData() async {
     await DatabaseService.init();
     // 初始化默认数据（如果还没有数据）
-    await DatabaseService.initDefaultData();
+    //await DatabaseService.initDefaultData();
     setState(() {
       _userProfile = DatabaseService.getUserProfile();
     });
