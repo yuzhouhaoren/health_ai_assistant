@@ -270,4 +270,114 @@ class DatabaseService {
     await _prefs.clear();
     print('所有数据已清除');
   }
+
+  // 6. ========== 默认数据相关操作 ==========
+
+  // 添加默认示例药品
+  static Future<bool> addDefaultMedicines() async {
+    List<Medicine> defaultMedicines = [
+      Medicine(
+        id: 'med_001',
+        name: '阿司匹林',
+        dose: '每次1片（100mg）',
+        frequency: '每日1次',
+        schedule: ['08:00'],
+        notes: '建议饭后服用，避免空腹',
+        createdAt: DateTime.now(),
+        lastTaken: null,
+      ),
+      Medicine(
+        id: 'med_002',
+        name: '维生素D',
+        dose: '每次2粒',
+        frequency: '每日1次',
+        schedule: ['09:00'],
+        notes: '促进钙吸收，建议早晨服用',
+        createdAt: DateTime.now(),
+        lastTaken: null,
+      ),
+      Medicine(
+        id: 'med_003',
+        name: '降压药',
+        dose: '每次1片',
+        frequency: '每日2次',
+        schedule: ['08:00', '20:00'],
+        notes: '服药期间注意监测血压',
+        createdAt: DateTime.now(),
+        lastTaken: null,
+      ),
+    ];
+    return await saveMedicines(defaultMedicines);
+  }
+
+  // 添加默认示例菜谱
+  static Future<bool> addDefaultFoods() async {
+    DateTime now = DateTime.now();
+
+    // 今天的日期
+    DateTime todayBreakfast = DateTime(now.year, now.month, now.day, 7, 30);
+    DateTime todayLunch = DateTime(now.year, now.month, now.day, 12, 0);
+    DateTime todayDinner = DateTime(now.year, now.month, now.day, 18, 30);
+
+    List<FoodAnalysis> defaultFoods = [
+      FoodAnalysis(
+        id: 'food_001',
+        foodName: '牛奶燕麦粥',
+        imagePath: '',
+        ingredients: ['牛奶', '燕麦', '鸡蛋'],
+        calories: '约 350 大卡',
+        protein: '12g',
+        carbs: '45g',
+        fat: '10g',
+        suggestion: '营养均衡的早餐选择，燕麦富含膳食纤维，有助于消化',
+        analyzedAt: todayBreakfast,
+      ),
+      FoodAnalysis(
+        id: 'food_002',
+        foodName: '西兰花炒鸡胸肉',
+        imagePath: '',
+        ingredients: ['鸡胸肉', '西兰花', '胡萝卜'],
+        calories: '约 280 大卡',
+        protein: '35g',
+        carbs: '12g',
+        fat: '8g',
+        suggestion: '高蛋白低脂餐，适合健身人群，建议搭配主食',
+        analyzedAt: todayLunch,
+      ),
+      FoodAnalysis(
+        id: 'food_003',
+        foodName: '清蒸鲈鱼',
+        imagePath: '',
+        ingredients: ['鲈鱼', '姜丝', '葱段'],
+        calories: '约 220 大卡',
+        protein: '25g',
+        carbs: '2g',
+        fat: '12g',
+        suggestion: '清淡养胃，鱼肉富含优质蛋白和不饱和脂肪酸',
+        analyzedAt: todayDinner,
+      ),
+    ];
+    return await saveFoodAnalysis(defaultFoods);
+  }
+
+  // 初始化默认用户数据（首次使用时调用）
+  static Future<void> initDefaultData() async {
+    // 如果没有任何数据，则添加示例数据
+    if (getMedicines().isEmpty) {
+      print('检测到无药品数据，正在添加示例药品...');
+      await addDefaultMedicines();
+    }
+    if (getFoodAnalysis().isEmpty) {
+      print('检测到无菜谱数据，正在添加示例菜谱...');
+      await addDefaultFoods();
+    }
+  }
+
+  // 重置所有数据（清除并重新添加示例数据）
+  static Future<void> resetAllData() async {
+    await clearAllData();
+    await addDefaultMedicines();
+    await addDefaultFoods();
+    print('数据已重置为默认示例数据');
+  }
 }

@@ -19,12 +19,21 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // 用户数据控制器
-  late UserProfile _userProfile;
+  // 用户数据控制器 - 提供初始值避免 LateInitializationError
+  UserProfile _userProfile = UserProfile(
+    name: '用户',
+    age: 25,
+    height: 170.0,
+    weight: 65.0,
+    avatarPath: '',
+  );
   final GlobalKey<_HomePageState> _homeKey = GlobalKey<_HomePageState>();
 
-  // 是否为移动端（屏幕宽度小于600）
-  bool get _isMobile => MediaQuery.of(context).size.width < 600;
+  // 状态消息
+  String _statusMessage = "";
+
+  // 是否为移动端（屏幕宽度小于600）- 直接在build中使用，不作为getter
+  bool _isMobile(BuildContext context) => MediaQuery.of(context).size.width < 600;
 
   @override
   void initState() {
@@ -35,6 +44,8 @@ class _HomePageState extends State<HomePage> {
   // 加载用户数据
   Future<void> _loadUserData() async {
     await DatabaseService.init();
+    // 初始化默认数据（如果还没有数据）
+    await DatabaseService.initDefaultData();
     setState(() {
       _userProfile = DatabaseService.getUserProfile();
     });
@@ -54,7 +65,7 @@ class _HomePageState extends State<HomePage> {
         title: const Text('健康AI管家'),
         backgroundColor: Colors.blue,
         // 移动端显示菜单按钮
-        leading: _isMobile
+        leading: _isMobile(context)
             ? Builder(
                 builder: (context) => IconButton(
                   icon: const Icon(Icons.menu),
@@ -64,8 +75,8 @@ class _HomePageState extends State<HomePage> {
             : null,
       ),
       // 移动端使用Drawer，桌面端使用内联侧边栏
-      drawer: _isMobile ? _buildMobileDrawer() : null,
-      body: _isMobile ? _buildMobileLayout() : _buildDesktopLayout(),
+      drawer: _isMobile(context) ? _buildMobileDrawer() : null,
+      body: _isMobile(context) ? _buildMobileLayout() : _buildDesktopLayout(),
     );
   }
 
@@ -170,6 +181,16 @@ class _HomePageState extends State<HomePage> {
             label: '服药计划',
             color: Colors.red,
             page: const MedicineSchedulePage(),
+          ),
+
+          // 重置数据按钮
+          ListTile(
+            leading: const Icon(Icons.refresh, color: Colors.grey),
+            title: const Text('重置数据'),
+            onTap: () {
+              Navigator.pop(context);
+              _resetAllData();
+            },
           ),
 
           const Spacer(),
@@ -294,6 +315,37 @@ class _HomePageState extends State<HomePage> {
             page: const MedicineSchedulePage(),
           ),
 
+          const SizedBox(height: 8),
+
+          // 重置数据按钮
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            child: ElevatedButton(
+              onPressed: _resetAllData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.grey,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  Icon(Icons.refresh, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '重置数据',
+                      style: const TextStyle(fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           const Spacer(),
 
           // 用户信息区域
@@ -379,6 +431,45 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
+    );
+  }
+
+  // 重置所有数据（清除并添加示例数据）
+  Future<void> _resetAllData() async {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('确认重置'),
+          content: const Text(
+            '确定要清除所有数据并恢复默认示例数据吗？\n\n这将：\n• 清除所有药品记录\n• 清除所有饮食记录\n• 恢复3个示例药品\n• 恢复3个示例菜谱',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                setState(() {
+                  _statusMessage = "正在重置数据...";
+                });
+                await DatabaseService.resetAllData();
+                await _loadUserData();
+                setState(() {
+                  _statusMessage = "数据已重置为示例数据";
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('✅ 数据已重置为示例数据')),
+                );
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('确认重置', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
     );
   }
 
