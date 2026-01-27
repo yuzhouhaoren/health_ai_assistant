@@ -397,7 +397,7 @@ class _ScanMenuPageState extends State<ScanMenuPage> {
         final List<dynamic> foods = jsonDecode(content);
         _debugPrint('AI', '解析为数组成功，元素数量: ${foods.length}');
 
-        final results = foods.map((f) => FoodAnalysis.fromJson(f)).toList();
+        final results = foods.map((f) => _createFoodAnalysis(f)).toList();
 
         for (var i = 0; i < results.length; i++) {
           _debugPrint('AI', '食物${i + 1}: ${results[i].foodName}, 热量: ${results[i].calories}');
@@ -408,7 +408,7 @@ class _ScanMenuPageState extends State<ScanMenuPage> {
         _debugPrint('AI', '数组解析失败，尝试解析为单个对象: $e');
 
         // 尝试解析为单个对象
-        final food = FoodAnalysis.fromJson(jsonDecode(content));
+        final food = _createFoodAnalysis(jsonDecode(content));
         _debugPrint('AI', '解析成功: ${food.foodName}, 热量: ${food.calories}');
 
         return [food];
@@ -424,6 +424,33 @@ class _ScanMenuPageState extends State<ScanMenuPage> {
     double bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age + 5;
     double activityFactor = 1.3;
     return (bmr * activityFactor).round();
+  }
+
+  // 创建FoodAnalysis对象（使用新的数据结构）
+  FoodAnalysis _createFoodAnalysis(Map<String, dynamic> json) {
+    // 解析营养素数值
+    int baseCalories = FoodAnalysis.parseCalories(json['calories'] ?? '0');
+    double baseProtein = FoodAnalysis.parseNutrient(json['protein'] ?? '0');
+    double baseCarbs = FoodAnalysis.parseNutrient(json['carbs'] ?? '0');
+    double baseFat = FoodAnalysis.parseNutrient(json['fat'] ?? '0');
+
+    return FoodAnalysis(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      foodName: json['foodName'] ?? json['name'] ?? '未知食物',
+      imagePath: '',
+      ingredients: (json['ingredients'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
+      baseCalories: baseCalories,
+      baseProtein: baseProtein,
+      baseCarbs: baseCarbs,
+      baseFat: baseFat,
+      calories: json['calories'] ?? '未计算',
+      protein: json['protein'] ?? '未知',
+      carbs: json['carbs'] ?? '未知',
+      fat: json['fat'] ?? '未知',
+      portion: PortionSize.medium, // 默认标准份
+      suggestion: json['suggestion'] ?? '无特别建议',
+      analyzedAt: DateTime.now(),
+    );
   }
 
   // 构建图片预览
@@ -517,11 +544,16 @@ class _ScanMenuPageState extends State<ScanMenuPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            // 份量选择器
+            _buildPortionSelector(food),
+            const SizedBox(height: 12),
             const Divider(),
-            _buildNutriRow("热量", food.calories),
-            _buildNutriRow("蛋白质", food.protein),
-            _buildNutriRow("碳水化合物", food.carbs),
-            _buildNutriRow("脂肪", food.fat),
+            // 营养素信息（根据份量计算）
+            _buildNutriRow("热量", food.actualNutrition.formattedCalories),
+            _buildNutriRow("蛋白质", food.actualNutrition.formattedProtein),
+            _buildNutriRow("碳水化合物", food.actualNutrition.formattedCarbs),
+            _buildNutriRow("脂肪", food.actualNutrition.formattedFat),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(8),
@@ -532,12 +564,15 @@ class _ScanMenuPageState extends State<ScanMenuPage> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.lightbulb, color: Colors.green, size: 20),
+                  Icon(Icons.lightbulb, color: Colors.green[700], size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       food.suggestion,
-                      style: const TextStyle(fontSize: 13),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.green[800],
+                      ),
                     ),
                   ),
                 ],
@@ -546,6 +581,53 @@ class _ScanMenuPageState extends State<ScanMenuPage> {
           ],
         ),
       ),
+    );
+  }
+
+  // 构建份量选择器
+  Widget _buildPortionSelector(FoodAnalysis food) {
+    return Wrap(
+      spacing: 8,
+      children: PortionSize.values.map((portion) {
+        final isSelected = food.portion == portion;
+        final isSmall = portion == PortionSize.small;
+        final isLarge = portion == PortionSize.large;
+
+        Color chipColor;
+        if (isSelected) {
+          chipColor = Colors.orange;
+        } else if (isSmall) {
+          chipColor = Colors.green[300]!;
+        } else if (isLarge) {
+          chipColor = Colors.red[300]!;
+        } else {
+          chipColor = Colors.grey[300]!;
+        }
+
+        return ChoiceChip(
+          label: Text(portion.label),
+          selected: isSelected,
+          selectedColor: Colors.orange[200],
+          backgroundColor: chipColor,
+          labelStyle: TextStyle(
+            color: isSelected ? Colors.white : (isSelected ? Colors.white : Colors.black87),
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          ),
+          onSelected: (selected) {
+            if (selected) {
+              setState(() {
+                food.portion = portion;
+                // 更新显示的营养素
+                food.calories = food.actualNutrition.formattedCalories;
+                food.protein = food.actualNutrition.formattedProtein;
+                food.carbs = food.actualNutrition.formattedCarbs;
+                food.fat = food.actualNutrition.formattedFat;
+              });
+              _debugPrint('PORTION', '${food.foodName} 份量改为 ${portion.label}');
+            }
+          },
+        );
+      }).toList(),
     );
   }
 

@@ -325,10 +325,15 @@ class DatabaseService {
         foodName: '牛奶燕麦粥',
         imagePath: '',
         ingredients: ['牛奶', '燕麦', '鸡蛋'],
+        baseCalories: 350,
+        baseProtein: 12,
+        baseCarbs: 45,
+        baseFat: 10,
         calories: '约 350 大卡',
         protein: '12g',
         carbs: '45g',
         fat: '10g',
+        portion: PortionSize.medium,
         suggestion: '营养均衡的早餐选择，燕麦富含膳食纤维，有助于消化',
         analyzedAt: todayBreakfast,
       ),
@@ -337,10 +342,15 @@ class DatabaseService {
         foodName: '西兰花炒鸡胸肉',
         imagePath: '',
         ingredients: ['鸡胸肉', '西兰花', '胡萝卜'],
+        baseCalories: 280,
+        baseProtein: 35,
+        baseCarbs: 12,
+        baseFat: 8,
         calories: '约 280 大卡',
         protein: '35g',
         carbs: '12g',
         fat: '8g',
+        portion: PortionSize.medium,
         suggestion: '高蛋白低脂餐，适合健身人群，建议搭配主食',
         analyzedAt: todayLunch,
       ),
@@ -349,10 +359,15 @@ class DatabaseService {
         foodName: '清蒸鲈鱼',
         imagePath: '',
         ingredients: ['鲈鱼', '姜丝', '葱段'],
+        baseCalories: 220,
+        baseProtein: 25,
+        baseCarbs: 2,
+        baseFat: 12,
         calories: '约 220 大卡',
         protein: '25g',
         carbs: '2g',
         fat: '12g',
+        portion: PortionSize.medium,
         suggestion: '清淡养胃，鱼肉富含优质蛋白和不饱和脂肪酸',
         analyzedAt: todayDinner,
       ),
@@ -376,8 +391,8 @@ class DatabaseService {
   // 重置所有数据（清除并重新添加示例数据）
   static Future<void> resetAllData() async {
     await clearAllData();
-    await addDefaultMedicines();
-    await addDefaultFoods();
-    print('数据已重置为默认示例数据');
+    //await addDefaultMedicines();
+    //await addDefaultFoods();
+    //print('数据已重置为默认示例数据');
   }
 }
